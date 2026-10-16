@@ -66,4 +66,113 @@ Este projeto segue o padrão **Docs-as-Code** para registrar suas decisões arqu
 * **Decisão:** **Monolito Modular baseado em Clean Architecture / Hexagonal**. **Não serão utilizados microsserviços**.
 * **Justificativa:** Evita a alta complexidade e os custos operacionais de microsserviços, mantendo a organização por camadas e portas/adaptadores em um deploy único e enxuto.
 * **Consequências:**
-  * 🟢 *Positivas:* Baixa complexidade de infraestrutura, facilidade de testes e
+  * 🟢 *Positivas:* Baixa complexidade de infraestrutura, facilidade de testes e respostas rápidas da API.
+  * 🔴 *Negativas:* Exige disciplina para respeitar os limites entre módulos no código.
+
+#### ADR-D02 — Modularização do sistema
+* **Status:** `Proposed`
+* **Contexto:** Divisão do sistema em componentes para reduzir acoplamento.
+* **Decisão:** Divisão por **Domínio de Negócio (Bounded Contexts)** em 5 módulos principais:
+  1. **Usuários e Perfis:** Cadastro e autenticação de Alunos e Professores.
+  2. **Catálogo e Mídias:** Exercícios, grupos musculares e mídias de demonstração.
+  3. **Gestão de Treinos:** Criação e parametrização de fichas pelo professor.
+  4. **Execução do Aluno:** Acompanhamento em tempo real, timer e marcação de séries.
+  5. **IA e Recomendação:** Sugestão inteligente e busca por linguagem natural.
+* **Justificativa:** Mantém alta coesão e permite alterações em um domínio sem impactar os demais.
+* **Consequências:**
+  * 🟢 *Positivas:* Organização clara do projeto e facilidade na atribuição de tarefas na equipe.
+  * 🔴 *Negativas:* Necessidade de especificação de DTOs para comunicação entre módulos.
+
+---
+
+### 🧠 Módulo de Inteligência Artificial
+
+#### ADR-IA01 — Arquitetura para integração de algoritmos de IA
+* **Status:** `Proposed`
+* **Contexto:** Incorporar algoritmos de sugestão e substituição de exercícios sem acoplar a IA ao núcleo do backend.
+* **Decisão:** Pattern **Strategy / Adapter** consumindo um **serviço auxiliar em Python (FastAPI)** com **estratégia de Fallback**.
+* **Justificativa:** O ecossistema Python é ideal para IA/ML. Se o serviço de IA falhar ou estiver indisponível, a aplicação aciona o fallback e permite a montagem manual pelo professor sem quebrar a SPA.
+* **Consequências:**
+  * 🟢 *Positivas:* Total isolamento entre a IA e o backend principal; alta resiliência a falhas.
+  * 🔴 *Negativas:* Necessidade de manter dois serviços em execução no servidor.
+
+#### ADR-IA02 — Representação para busca semântica
+* **Status:** `Proposed`
+* **Contexto:** Permitir buscas por linguagem natural (ex: *"exercício para peito sem halteres para quem tem dor no ombro"*).
+* **Decisão:** Geração de **Embeddings** e busca vetorial utilizando a extensão **`pgvector` no PostgreSQL**.
+* **Justificativa:** Permite busca semântica e filtros relacionais (SQL) na mesma consulta, sem a necessidade de manter um banco de dados vetorial dedicado.
+* **Consequências:**
+  * 🟢 *Positivas:* Infraestrutura simplificada e respostas de busca rápidas para a SPA.
+  * 🔴 *Negativas:* Requer a inclusão do plugin `pgvector` na imagem Docker do banco de dados.
+
+---
+
+### 🎨 Módulo de Interface (UX)
+
+#### ADR-UX01 — Estratégia de interface multiplataforma
+* **Status:** `Proposed`
+* **Contexto:** Atender ao professor (Desktop, montagem ágil) e ao aluno (Mobile, uso com uma mão só na academia).
+* **Decisão:** **SPA Responsiva Unificada (React PWA)**.
+* **Justificativa:** Base de código única que adapta a interface conforme o tamanho de tela, elimina a necessidade de publicação em lojas de aplicativos e roda direto no navegador.
+* **Consequências:**
+  * 🟢 *Positivas:* Menor custo de desenvolvimento e atualizações instantâneas.
+  * 🔴 *Negativas:* Dependência de suporte do navegador para recursos avançados de hardware em background.
+
+#### ADR-UX02 — Estratégia de interação para exploração da biblioteca e montagem
+* **Status:** `Proposed`
+* **Contexto:** Facilitar a criação de treinos pelo professor e a execução intuitiva pelo aluno.
+* **Decisão:** **Drag-and-Drop em colunas (Desktop/Professor)** + **Cards em fluxo único com Timer automático (Mobile/Aluno)**.
+* **Justificativa:** O professor arrasta exercícios para a ficha rapidamente, enquanto o aluno visualiza um exercício por vez com foco em marcar séries e descansar.
+* **Consequências:**
+  * 🟢 *Positivas:* Montagem de treinos ultrarrápida e interface sem distrações no celular.
+  * 🔴 *Negativas:* Exige rigor no desenvolvimento de componentes touch/drag-and-drop responsivos.
+
+---
+
+### 🧪 Módulo de Qualidade e Testes (QA)
+
+#### ADR-QA01 — Estratégia de testabilidade
+* **Status:** `Proposed`
+* **Contexto:** Garantir testes automatizados rápidos e isolados.
+* **Decisão:** **Pirâmide de Testes**: Foco principal em **Testes Unitários de Regra de Negócio** + **Testes de Componentes (SPA)** + **Testes de API**.
+* **Justificativa:** A Injeção de Dependências da Clean Architecture permite testar regras sem subir banco de dados ou navegador, garantindo execuções em poucos segundos na esteira de CI.
+* **Consequências:**
+  * 🟢 *Positivas:* Suíte de testes extremamente rápida e confiável.
+  * 🔴 *Negativas:* Necessidade de criar e manter mocks de dependências nos testes.
+
+#### ADR-QA02 — Estratégia de testes para componentes externos
+* **Status:** `Proposed`
+* **Contexto:** Testar integrações (S3, IA, IndexedDB) sem dependência de serviços pagos ou internet.
+* **Decisão:** **Emulação via LocalStack** (containers de S3) + **Mocks de APIs do Navegador (`fake-indexeddb`)**.
+* **Justificativa:** Permite rodar toda a suíte de testes de forma determinística, offline e com custo zero.
+* **Consequências:**
+  * 🟢 *Positivas:* Testes independentes de conexão e reprodutíveis em qualquer máquina.
+  * 🔴 *Negativas:* Manutenção dos stubs de APIs do navegador no ambiente de testes.
+
+---
+
+### 📖 Módulo de Documentação e Governança
+
+#### ADR-DOC01 — Estratégia de documentação arquitetural
+* **Status:** `Proposed`
+* **Contexto:** Registrar a arquitetura de forma transparente e atualizada.
+* **Decisão:** **Docs-as-Code**: Arquivos **Markdown**, diagramas **Mermaid.js** no Git (`/docs`) e especificação **OpenAPI/Swagger** gerada pela API.
+* **Justificativa:** A documentação é versionada junto com o código nos Pull Requests, permanecendo sempre atualizada e acessível no repositório.
+* **Consequências:**
+  * 🟢 *Positivas:* Documentação mantida junto do código, rastreável e sem custo de ferramentas terceiras.
+  * 🔴 *Negativas:* Exige rigor nos Code Reviews para garantir atualização dos arquivos `.md`.
+
+#### ADR-DOC02 — Estratégia de documentação para extensões
+* **Status:** `Proposed`
+* **Contexto:** Permitir que desenvolvedores externos criem novos plugins para a plataforma open-source.
+* **Decisão:** **Guia `CONTRIBUTING-PLUGINS.md`** + **Interfaces Tipadas públicas** + **Projetos de Exemplo em `/examples`**.
+* **Justificativa:** Disponibilizar exemplos funcionais prontos (boilerplates) permite que novos contribuidores criem extensões por clonagem e adaptação sem precisar entender todo o código-fonte.
+* **Consequências:**
+  * 🟢 *Positivas:* Expansão segura do ecossistema por contribuidores da comunidade.
+  * 🔴 *Negativas:* Exige atualização periódica dos projetos de exemplo pela equipe principal.
+
+---
+
+## 🛠️ Como Contribuir
+
+Consulte o arquivo [`CONTRIBUTING-PLUGINS.md`](./docs/CONTRIBUTING-PLUGINS.md) para entender como criar novos extratores de mídias ou algoritmos de recomendação para a plataforma.
